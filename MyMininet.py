@@ -23,14 +23,16 @@ class NetworkTopo(Topo):
 
     def build(self, **_opts):
         info("### Adding routers and hosts \n")
-        r1 = self.addNode('r1', cls=LinuxRouter)
-        # r2 = self.addNode('r2', cls=LinuxRouter)
-        h1 = self.addHost('h1', ip='10.0.7.5/24')
-        h2 = self.addHost('h2', ip='10.0.7.6/24')
+        r1 = self.addNode('r1', cls=LinuxRouter, ip='10.0.7.51/24')
+        r2 = self.addNode('r2', cls=LinuxRouter, ip='10.0.9.52/24')
+
+        h1 = self.addHost('h1', ip='10.0.7.1/24', defaultRoute='via 10.0.7.51')
+        h2 = self.addHost('h2', ip='10.0.9.1/24', defaultRoute='via 10.0.9.52')
 
         info("### Add links")
-        l1 = self.addLink(h1, r1)
-        l2 = self.addLink(h2, r1)
+        l1 = self.addLink(h1, r1, intfName1='h1-eth1', intfName2='r1-eth1')
+        l2 = self.addLink(h2, r2, intfName1='h2-eth1', intfName2='r2-eth1')
+        l3 = self.addLink(r1, r2, intfName1='r1-eth2', intfName2='r2-eth2')
 
 def SetQuagga(Router):
     """Start zebra and bgpd."""
@@ -43,10 +45,12 @@ def SetQuagga(Router):
     #     % (Router.name, Router.name, Router.name, Router.name), shell=True)
     # Router.waitOutput()
 
-    Router.cmd('/usr/local/sbin/zebra -f conf/zebra.conf -d -i /tmp/zebra.pid -z /tmp/zebra.api')
+    Router.cmd('sudo /usr/local/sbin/zebra -f conf/%s-zebra.conf -d -i /tmp/%s-zebra.pid -z /tmp/%s-zebra.api'
+               % (Router.name, Router.name, Router.name), shell=True)
     Router.waitOutput()
 
-    Router.cmd('/usr/local/sbin/bgpd -f conf/bgpd.conf -d -i /tmp/bgpd.pid -z /tmp/bgpd.api')
+    Router.cmd('sudo /usr/local/sbin/bgpd -f conf/%s-bgpd.conf -d -i /tmp/%s-bgpd.pid -z /tmp/%s-bgpd.api'
+               % (Router.name, Router.name, Router.name), shell=True)
     Router.waitOutput()
 
 def run():
@@ -62,14 +66,26 @@ def run():
     h1 = net.getNodeByName('h1')
     h2 = net.getNodeByName('h2')
     r1 = net.getNodeByName('r1')
-    # r2 = net.getNodeByName('r2')
+    r2 = net.getNodeByName('r2')
 
     # info("### Add external interfaces \n")
-    # intf = Intf(name='enp0s3', node=r1, ip='10.0.7.4/24')
-    #
+    # intf = Intf(name='enp0s3', node=r2, ip='10.0.6.5/24')
+
     info("### Starting Quagga \n")
     SetQuagga(r1)
-    # SetQuagga(r2)
+    SetQuagga(r2)
+
+    # info("### Starting Wireshark \n")
+    # r1.cmd("wireshark -i r1-eth2 &")
+    # r1.cmd("sleep 3")
+    # r2.cmd("sleep 3")
+
+    info("### Starting Decider \n")
+    r1.cmd(" 'sudo python DeciderClient.py' | xterm &")
+    r1.cmd("xterm &")
+    # h1.cmd("sleep 5")
+    # h1.cmd("echo kek | faas-cli --gateway 10.0.8.51 invoke figlet")
+
 
     # info("### Leasing DHCP addresses \n")
     # h1.cmd("dhclient -r && dhclient")
