@@ -75,16 +75,15 @@ def run():
     SetQuagga(r1)
     SetQuagga(r2)
 
-    # info("### Starting Wireshark \n")
-    # r1.cmd("wireshark -i r1-eth2 &")
-    # r1.cmd("sleep 3")
-    # r2.cmd("sleep 3")
+    info("### Starting Wireshark \n")
+    r1.cmd("wireshark -i r1-eth2 &")
+    r1.cmd("sleep 3")
+    r2.cmd("sleep 3")
 
     info("### Starting Decider \n")
-    r1.cmd(" 'sudo python DeciderClient.py' | xterm &")
-    r1.cmd("xterm &")
+    # r1.cmd("xterm &")
     # h1.cmd("sleep 5")
-    # h1.cmd("echo kek | faas-cli --gateway 10.0.8.51 invoke figlet")
+    h1.cmd("echo kek | faas-cli --gateway 10.0.7.51 invoke figlet")
 
 
     # info("### Leasing DHCP addresses \n")
