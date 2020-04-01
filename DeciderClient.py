@@ -14,6 +14,19 @@ from socketserver import TCPServer, BaseRequestHandler
 from signal import signal, SIGINT
 
 
+class DeciderClient:
+
+    def __init__(self, IP, telnetquagga, port):
+        self.IP = IP
+        self.telnetquagga = telnetquagga
+        self.port = port
+
+    def start(self):
+        with TCPServer((deciderIP, 8080), TCPRequestHandler) as tcpd:
+            print("Serving at port", 8080)
+            tcpd.serve_forever()
+
+
 class TCPRequestHandler(BaseRequestHandler):
 
     def handle(self):
@@ -65,14 +78,11 @@ if __name__ == '__main__':
     print('=== Starting Client decider ===')
     signal(SIGINT, signalHandler)
 
-    # tq = TelnetQuagga(host="127.0.0.1", port=2605)
-    # print(tq.cmd("sh ip bgp"))
-    # print("")
-
-    deciderIP = '10.0.8.51'
-    clientIP = '10.0.7.1'
     # clientSession = TCP_client.tcplink(proto=HTTP, ip=clientIP, port=80)
 
-    with TCPServer((deciderIP, 8080), TCPRequestHandler) as tcpd:
-        print("Serving at port", 8080)
-        tcpd.serve_forever()
+    tq = TelnetQuagga(host="127.0.0.1", port=2605)
+    deciderIP = '10.0.8.51'
+    clientIP = '10.0.7.1'
+
+    deciderClient = DeciderClient(deciderIP, tq, 8080)
+    deciderClient.start()
