@@ -51,7 +51,6 @@ class TCPRequestHandler(BaseRequestHandler):
                 print('Path:', http.Path.decode('ascii'))
                 print('Payload:', http.payload.load.decode('ascii'))
 
-
             elif http.name == 'HTTP Response':
                 print('Status code:', http.Status_Code.decode('ascii'))
                 print('Payload:', http.payload.load.decode('ascii'))
