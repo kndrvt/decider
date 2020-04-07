@@ -27,7 +27,9 @@ class DeciderServer:
         self.maxrtt = maxrtt
         self.maxhop = maxhop
         self.rtt = defaultdict(list)
+        self.rttav = defaultdict(float)
         self.hop = defaultdict(list)
+        self.hopav = defaultdict(float)
         self.bufsize = bufsize
         self.faasMetrics = defaultdict(list)
         self.duration = duration  # seconds
@@ -44,21 +46,31 @@ class DeciderServer:
 
         for targetIP in self.clientDeciders:
             sum_rtt = 0
-            sum_ttl = 0
+            sum_hop = 0
             n = 1
             for i in range(n):
-                rtt, ttl = self.ping(targetIP)
+                rtt, hop = self.ping(targetIP)
                 sum_rtt += rtt
-                sum_ttl += ttl
+                sum_hop += hop
 
             if len(self.rtt[targetIP]) >= self.bufsize:
                 self.rtt[targetIP].pop(0)
                 self.hop[targetIP].pop(0)
             self.rtt[targetIP].append(sum_rtt / n)
-            self.hop[targetIP].append(64 - sum_ttl / n)
+            self.hop[targetIP].append(sum_hop / n)
 
-            print(self.rtt[targetIP])
-            print(self.hop[targetIP])
+            sum = 0
+            for rtt in self.rtt[targetIP]:
+                sum += rtt
+            self.rttav[targetIP] = sum / len(self.rtt[targetIP])
+
+            sum = 0
+            for hop in self.hop[targetIP]:
+                sum += hop
+            self.hopav[targetIP] = sum / len(self.hop[targetIP])
+
+            print(self.rttav[targetIP])
+            print(self.hopav[targetIP])
 
     def updateFaasMetrics(self):
 
@@ -67,7 +79,7 @@ class DeciderServer:
 
         parameters = [
             # function invocation rate
-            "query?query=rate(gateway_function_invocation_total[{0}s])",
+            "query?query=rate(gateway_function_invocation_total{{code=\"200\"}}[{0}s])",
             # function replica count
             "query?query=gateway_service_count",
             # average function execution time
@@ -77,28 +89,39 @@ class DeciderServer:
 
         for parameter in parameters:
             response = get(URL + parameter.format(self.duration))
+            # print(dumps(response.json(), indent=2, sort_keys=True))
+            # print("================================================")
             if response.json()["status"] == "success":
                 for result in response.json()['data']['result']:
                     value = result['value'][1]
                     if value != '0' and value != 'NaN':
-                        self.faasMetrics[result['metric']['function_name']].append(value)
+                        self.faasMetrics[result['metric']['function_name']].append(float(value))
                     else:
-                        self.faasMetrics.pop(result['metric']['function_name'], [])
+                        self.faasMetrics[result['metric']['function_name']].append(float(0))
+                        # self.faasMetrics.pop(result['metric']['function_name'], [])
             else:
                 print("Response status differs from \'success\'")
 
         print(self.faasMetrics)
 
     def updateTargetValues(self):
-        pass
+        targetvalue = self.targetFunction('figlet', self.clientDeciders[0])
+        print(targetvalue)
 
     def ping(self, targetIP):
         start = clock()
         ans, unans = sr(IP(dst=targetIP, ttl=64) / ICMP(), timeout=10)
         if ans:
-            return 1000 * (clock() - start), ans[0][1][IP].ttl
+            return 1000 * (clock() - start), 64 - ans[0][1][IP].ttl + 1
         else:
             return self.maxrtt, self.maxhop
+
+    def targetFunction(self, function, decider):
+        return self.rtt[decider][0] / 10 + \
+               self.hop[decider][0] / 64 + \
+               (self.faasMetrics[git function])[0] + \
+               1 / (self.faasMetrics[function])[1] + \
+               100 * (self.faasMetrics[function])[2]
 
 
 def signalHandler(signum, frame):
@@ -116,7 +139,8 @@ if __name__ == '__main__':
     faasIP = '10.0.9.1'
     faasPort = 9090
     deciderIP = '10.0.8.52'
-    clientDeciders = ['10.0.8.51']
+    # clientDeciders = ['10.0.8.51']
+    clientDeciders = ['10.0.9.1']
 
     deciderServer = DeciderServer(deciderIP, tq, faasIP, faasPort, clientDeciders)
     deciderServer.start()
