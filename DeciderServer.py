@@ -63,7 +63,7 @@ class DeciderServer:
     def updateFaasMetrics(self):
 
         self.faasMetrics.clear()
-        URL = "http://" + self.faasIP + ":" + self.faasPort + "/api/v1/"
+        URL = "http://" + self.faasIP + ":" + str(self.faasPort) + "/api/v1/"
 
         parameters = [
             # function invocation rate
@@ -114,7 +114,7 @@ if __name__ == '__main__':
 
     tq = TelnetQuagga(host="127.0.0.1", port=2605)
     faasIP = '10.0.9.1'
-    faasPort = '9090'
+    faasPort = 9090
     deciderIP = '10.0.8.52'
     clientDeciders = ['10.0.8.51']
 
