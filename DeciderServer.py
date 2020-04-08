@@ -119,7 +119,7 @@ class DeciderServer:
     def targetFunction(self, function, decider):
         return self.rtt[decider][0] / 10 + \
                self.hop[decider][0] / 64 + \
-               (self.faasMetrics[git function])[0] + \
+               (self.faasMetrics[function])[0] + \
                1 / (self.faasMetrics[function])[1] + \
                100 * (self.faasMetrics[function])[2]
 

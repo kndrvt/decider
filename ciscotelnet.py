@@ -3,6 +3,8 @@
 import sys, os, re, getpass
 from telnetlib import Telnet, IAC, WILL, ECHO
 
+from past.builtins import raw_input
+
 MODE_INIT = "INIT"
 MODE_CONNECTED = "CONNECTED"
 MODE_USER = "USER"

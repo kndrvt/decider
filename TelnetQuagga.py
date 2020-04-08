@@ -15,4 +15,4 @@ class TelnetQuagga:
             print("Error of authorization")
 
     def cmd(self, command):
-        return router.cmd(command)
+        return self.router.cmd(command)
