@@ -17,13 +17,14 @@ from time import clock, sleep
 
 class Decider(HTTPServer):
 
-    def __init__(self, IP, Port, faasPort, hosts, maxrtt=5000, maxhop=64, bufsize=3):
+    def __init__(self, IP, Port, faasPort, hosts, pause=10, maxrtt=5000, maxhop=64, bufsize=3):
         HTTPServer.__init__(self, server_address=(IP, Port), RequestHandlerClass=HTTPRequestHandler)
         self.IP = IP
         self.Port = Port
         self.faasPort = faasPort
         self.lock = Lock()
         self.hosts = hosts
+        self.pause = pause  # seconds
         self.maxrtt = maxrtt
         self.maxhop = maxhop
         self.rtt = defaultdict(list)
@@ -32,6 +33,7 @@ class Decider(HTTPServer):
         self.hopav = defaultdict(float)
         self.bufsize = bufsize
         self.faasMetrics = defaultdict(dict)
+        self.faasMetricsNames = ['inv_rate', 'rep_count', 'exec_time']
         self.bestHosts = defaultdict(str)
 
     def __del__(self):
@@ -48,28 +50,22 @@ class Decider(HTTPServer):
             httpr = http.payload
 
             if httpr.name == 'HTTP Request':
-                # print("=================================")
-                # print('Type:', httpr.name)
-                # print('Method:', httpr.Method.decode('ascii'))
-                # print('Host:', httpr.Host.decode('ascii'))
-                # print('Path:', httpr.Path.decode('ascii'))
-                # print('Payload:', httpr.payload.load.decode('ascii'))
-                # print("=================================")
 
-                global response
                 s = httpr.Path.decode('ascii')
                 n = s.rindex("/")
                 faasIP = self.decide(s[n + 1:])
 
+                print()
                 print("=== Redirection ===")
-                print(http.summary(), " --> ", faasIP)
+                print(httpr.summary(), " --> ", faasIP)
 
                 if faasIP:
+                    global response
                     if httpr.Method.decode('ascii') == 'POST':
-                        response = post(url="http://" + faasIP + ':' + str(self.faasPort) + httpr.Path.decode('ascii'),
+                        response = post(url="http://" + faasIP + ':' + str(self.Port) + httpr.Path.decode('ascii'),
                                         data=httpr.payload.load.decode('ascii'))
                     elif http.Method.decode('ascii') == 'GET':
-                        response = get(url="http://" + faasIP + ':' + str(self.faasPort) + httpr.Path.decode('ascii'),
+                        response = get(url="http://" + faasIP + ':' + str(self.Port) + httpr.Path.decode('ascii'),
                                        data=httpr.payload.load.decode('ascii'))
                     else:
                         print("Other request method")
@@ -84,17 +80,20 @@ class Decider(HTTPServer):
                         return bytes(HTTP() / HTTPResponse(Status_Code=str(response.status_code)) / Raw(
                             load=response.content.decode('ascii')))
                     else:
-                        return bytes(HTTP / HTTPResponse(Status_Code='405'))
+                        return bytes(HTTP / HTTPResponse(Status_Code='405') / Raw())
                 else:
-                    return bytes(HTTP / HTTPResponse(Status_Code='400'))
+                    return bytes(HTTP / HTTPResponse(Status_Code='400') / Raw())
             else:
-                return bytes(HTTP / HTTPResponse(Status_Code='400'))
+                return bytes(HTTP / HTTPResponse(Status_Code='400') / Raw())
         else:
-            return bytes(HTTP / HTTPResponse(Status_Code='400'))
+            return bytes(HTTP / HTTPResponse(Status_Code='400') / Raw())
 
     def decide(self, function) -> str:
         with self.lock:
-            return self.bestHosts[function]
+            if self.bestHosts.get(function):
+                return self.bestHosts[function]
+            else:
+                return ""
 
     def updateAll(self):
         while True:
@@ -102,7 +101,7 @@ class Decider(HTTPServer):
             self.updateNetworkMetrics()
             self.updateFaasMetrics()
             self.updateBestHosts()
-            sleep(10)
+            sleep(self.pause)
 
     def updateHosts(self):
         print()
@@ -114,6 +113,7 @@ class Decider(HTTPServer):
         print("=== Network metrics updating ===")
 
         maxMetrics = [0, 0]
+        minMetrics = [0, 0]
         for targetIP in self.hosts:
             sum_rtt = 0
             sum_hop = 0
@@ -133,31 +133,41 @@ class Decider(HTTPServer):
             for rtt in self.rtt[targetIP]:
                 sum += rtt
             self.rttav[targetIP] = sum / len(self.rtt[targetIP])
-            if self.rttav[targetIP] > maxMetrics[0]:
-                maxMetrics[0] = self.rttav[targetIP]
+            if self.rttav[targetIP] < self.maxrtt:
+                if self.rttav[targetIP] > maxMetrics[0]:
+                    maxMetrics[0] = self.rttav[targetIP]
+                if self.rttav[targetIP] < minMetrics[0]:
+                    minMetrics[0] = self.rttav[targetIP]
+            else:
+                self.rttav.pop(targetIP)
 
             sum = 0
             for hop in self.hop[targetIP]:
                 sum += hop
             self.hopav[targetIP] = sum / len(self.hop[targetIP])
-            if self.hopav[targetIP] > maxMetrics[1]:
-                maxMetrics[1] = self.hopav[targetIP]
+            if self.hopav[targetIP] < self.maxhop:
+                if self.hopav[targetIP] > maxMetrics[1]:
+                    maxMetrics[1] = self.hopav[targetIP]
+                if self.hopav[targetIP] < minMetrics[1]:
+                    minMetrics[1] = self.hopav[targetIP]
+            else:
+                self.hopav.pop(targetIP)
+
+        print(dumps(self.rttav, indent=2, sort_keys=True))
+        print(dumps(self.hopav, indent=2, sort_keys=True))
 
         # normalization
         for host, metric in self.rttav.items():
-            if maxMetrics[0] > 0:
-                self.rttav[host] /= maxMetrics[0]
+            if maxMetrics[0] - minMetrics[0] > 0:
+                self.rttav[host] = (self.rttav[host] - minMetrics[0]) / (maxMetrics[0] - minMetrics[0])
             else:
                 self.rttav[host] = 1
 
         for host, metric in self.hopav.items():
-            if maxMetrics[1] > 0:
-                self.hopav[host] /= maxMetrics[1]
+            if maxMetrics[1] - minMetrics[1] > 0:
+                self.hopav[host] = (self.hopav[host] - minMetrics[1]) / (maxMetrics[1] - minMetrics[1])
             else:
                 self.hopav[host] = 1
-
-        print(dumps(self.rttav, indent=2, sort_keys=True))
-        print(dumps(self.hopav, indent=2, sort_keys=True))
 
     def ping(self, targetIP):
         start = clock()
@@ -172,31 +182,52 @@ class Decider(HTTPServer):
         print("=== Faas metrics updating ===")
 
         maxMetrics = dict()
+        minMetrics = dict()
         for host in self.hosts:
-            response = get("http://" + host + ":" + str(self.faasPort))
+            global response
+            try:
+                response = get("http://" + host + ":" + str(self.faasPort))
+            except:
+                print(">>>", host, "metrics haven't been updated")
+                continue
             faasmetrics = loads(response.content.decode('ascii'))
 
-            # print("=======================")
             # print(dumps(faasmetrics, indent=2, sort_keys=True))
 
             for function, metrics in faasmetrics.items():
+
                 if not maxMetrics.get(function):
-                    maxMetrics[function] = [0, 0, 0]
-                for i in range(3):
-                    if metrics[i] > maxMetrics[function][i]:
-                        maxMetrics[function][i] = metrics[i]
-                with self.lock:
+                    maxMetrics[function] = dict()
+                    for name in self.faasMetricsNames:
+                        maxMetrics[function][name] = float(0)
+
+                if not minMetrics.get(function):
+                    minMetrics[function] = dict()
+                    for name in self.faasMetricsNames:
+                        minMetrics[function][name] = float(0)
+
+                for name, value in metrics.items():
+                    if metrics[name] > maxMetrics[function][name]:
+                        maxMetrics[function][name] = metrics[name]
+                    if metrics[name] < minMetrics[function][name]:
+                        minMetrics[function][name] = metrics[name]
+
                     self.faasMetrics[function][host] = metrics
 
+        print(dumps(dict(self.faasMetrics), indent=2, sort_keys=True))
+
         # normalization
+
         for function, hosts in self.faasMetrics.items():
             for host, metrics in hosts.items():
-                for i in range(3):
-                    if maxMetrics[function][i] > 0:
-                        self.faasMetrics[function][host][i] /= maxMetrics[function][i]
-
-        # print("=======================")
-        print(dumps(dict(self.faasMetrics), indent=2, sort_keys=True))
+                for name, value in metrics.items():
+                    if (maxMetrics[function][name] - minMetrics[function][name]) > 0:
+                        self.faasMetrics[function][host][name] = (self.faasMetrics[function][host][name] -
+                                                                  minMetrics[function][name]) / (
+                                                                         maxMetrics[function][name] -
+                                                                         minMetrics[function][name])
+                    else:
+                        self.faasMetrics[function][host][name] = 1.0
 
     def updateBestHosts(self):
         print()
@@ -206,43 +237,61 @@ class Decider(HTTPServer):
             targetValues = dict()
             for host in self.hosts:
                 targetValues[self.targetFunction(function, host)] = host
-            print(dumps(targetValues, indent=2, sort_keys=True))
-            value = min(targetValues.keys())
-            self.bestHosts[function] = targetValues[value]
 
-        print(dumps(dict(self.bestHosts), indent=2, sort_keys=True))
+            print(function, dumps(targetValues, indent=2, sort_keys=True))
+
+            value = min(targetValues.keys())
+            with self.lock:
+                self.bestHosts[function] = targetValues[value]
+
+        with self.lock:
+            print(dumps(dict(self.bestHosts), indent=2, sort_keys=True))
 
     def targetFunction(self, function, host):
-        return self.faasMetrics[function][host][0] + \
-               1 - self.faasMetrics[function][host][1] + \
-               self.faasMetrics[function][host][2] + \
-               self.rttav[host] + \
-               self.hopav[host]
+        sum = 0
+        if self.rttav.get(host):
+            sum += self.rttav[host]
+        else:
+            sum += 2.0
+        if self.hop.get(host):
+            sum += self.hopav[host]
+        else:
+            sum += 2.0
+
+        for name in self.faasMetricsNames:
+            if self.faasMetrics[function][host].get(name):
+                sum += self.faasMetrics[function][host][name]
+            else:
+                sum += 2.0
+        return sum
 
 
 class HTTPRequestHandler(BaseHTTPRequestHandler):
 
     def handle(self):
         self.data = self.request.recv(1024).strip()
-        response = self.server.handle(self.data)
-        self.request.sendall(response)
+        try:
+            response = self.server.handle(self.data)
+            self.request.sendall(response)
+        except:
+            self.send_response(400)
 
 
 def signalHandler(signum, frame):
     print()
-    print('=== Stopping Client decider ===')
+    print('=== Decider stopping ===')
     exit()
 
 
 if __name__ == '__main__':
     print()
-    print('=== Starting Client decider ===')
+    print('=== Decider starting ===')
     signal(SIGINT, signalHandler)
 
     deciderIP = '10.0.8.51'
     deciderPort = 8080
     faasPort = 8888
-    hosts = ['10.0.8.52']
+    hosts = ['10.0.9.1']
 
-    decider = Decider(deciderIP, deciderPort, faasPort, hosts)
+    decider = Decider(deciderIP, deciderPort, faasPort, hosts, 5)
     decider.start()

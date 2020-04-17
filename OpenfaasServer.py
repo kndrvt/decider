@@ -18,7 +18,7 @@ from collections import defaultdict
 
 class OpenfaasServer(HTTPServer):
 
-    def __init__(self, IP, Port, faasIP, faasPort,
+    def __init__(self, IP, Port, faasIP, faasPort, pause=10,
                  duration=20):
         HTTPServer.__init__(self, server_address=(IP, Port), RequestHandlerClass=HTTPRequestHandler)
 
@@ -26,8 +26,9 @@ class OpenfaasServer(HTTPServer):
         self.Port = Port
         self.faasIP = faasIP
         self.faasPort = faasPort
+        self.pause = pause  # seconds
         self.lock = Lock()
-        self.faasMetrics = defaultdict(list)
+        self.faasMetrics = defaultdict(dict)
         self.duration = duration  # seconds
         self.handler = None
 
@@ -45,11 +46,9 @@ class OpenfaasServer(HTTPServer):
             httpr = http.payload
 
             if httpr.name == 'HTTP Request':
-                print("=================================")
-                print('Type:', httpr.name)
-                print('Method:', httpr.Method.decode('ascii'))
-                print('Host:', httpr.Host.decode('ascii'))
-                print("=================================")
+                print()
+                print("=== Request ===")
+                print(httpr.summary())
 
                 with self.lock:
                     payload = dumps(dict(self.faasMetrics))
@@ -65,49 +64,45 @@ class OpenfaasServer(HTTPServer):
     def updateAll(self):
         while True:
             self.updateFaasMetrics()
-            sleep(10)
+            sleep(self.pause)
 
     def updateFaasMetrics(self):
+        print()
         print("=== Faas metrics updating ===")
         with self.lock:
             self.faasMetrics.clear()
             URL = "http://" + self.faasIP + ":" + str(self.faasPort) + "/api/v1/"
 
-            parameters = [
+            parameters = {
                 # function invocation rate
-                "query?query=rate(gateway_function_invocation_total{{code=\"200\"}}[{0}s])",
+                'inv_rate': "query?query=rate(gateway_function_invocation_total{{code=\"200\"}}[{0}s])",
                 # function replica count
-                "query?query=gateway_service_count",
+                'rep_count': "query?query=gateway_service_count",
                 # average function execution time
-                "query?query=(rate(gateway_functions_seconds_sum[{0}s])\
+                'exec_time': "query?query=(rate(gateway_functions_seconds_sum[{0}s])\
                /rate(gateway_functions_seconds_count[{0}s]))"
-            ]
+            }
 
-            for parameter in parameters:
-                response = get(URL + parameter.format(self.duration))
+            for name, parameter in parameters.items():
+                global response
+                try:
+                    response = get(URL + parameter.format(self.duration))
+                except:
+                    print(">>>", name, "metrics haven't been updated")
+                    continue
                 # print(dumps(response.json(), indent=2, sort_keys=True))
-                # print("================================================")
                 if response.json()["status"] == "success":
                     for result in response.json()['data']['result']:
                         value = result['value'][1]
                         if value != '0' and value != 'NaN':
-                            self.faasMetrics[result['metric']['function_name']].append(float(value))
+                            self.faasMetrics[result['metric']['function_name']][name] = float(value)
                         else:
-                            self.faasMetrics[result['metric']['function_name']].append(float(0))
-                            # self.faasMetrics.pop(result['metric']['function_name'], [])
+                            self.faasMetrics[result['metric']['function_name']][name] = float(0)
+
                 else:
                     print("Response status differs from \'success\'")
 
-            print(dict(self.faasMetrics))
-
-    # def updateTargetValues(self):
-    #     targetvalue = self.targetFunction('figlet')
-    #     print(targetvalue)
-    #
-    # def targetFunction(self, function):
-    #     return (self.faasMetrics[function])[0] + \
-    #            1 / (self.faasMetrics[function])[1] + \
-    #            100 * (self.faasMetrics[function])[2]
+            print(dumps(self.faasMetrics, indent=2, sort_keys=True))
 
 
 class HTTPRequestHandler(BaseHTTPRequestHandler):
@@ -120,19 +115,19 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
 
 def signalHandler(signum, frame):
     print()
-    print('=== Stopping Server decider ===')
+    print('=== Openfaas server stopping ===')
     exit()
 
 
 if __name__ == '__main__':
     print()
-    print('=== Starting Server decider ===')
+    print('=== Openfaas server starting ===')
     signal(SIGINT, signalHandler)
 
-    serverIP = '10.0.8.52'
+    serverIP = '10.0.9.1'
     serverPort = 8888
     faasIP = '10.0.9.1'
     faasPort = 9090
 
-    server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort)
+    server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, 5)
     server.start()
