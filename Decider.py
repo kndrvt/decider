@@ -17,13 +17,15 @@ from time import clock, sleep
 
 class Decider(HTTPServer):
 
-    def __init__(self, IP, Port, faasPort, hosts, pause=10, maxrtt=5000, maxhop=64, bufsize=3):
+    def __init__(self, IP, Port, faasPort, regServerIP, regServerPort, pause=10, maxrtt=5000, maxhop=64, bufsize=3):
         HTTPServer.__init__(self, server_address=(IP, Port), RequestHandlerClass=HTTPRequestHandler)
         self.IP = IP
         self.Port = Port
         self.faasPort = faasPort
         self.lock = Lock()
-        self.hosts = hosts
+        self.regServerIP = regServerIP
+        self.regServerPort = regServerPort
+        self.hosts = []
         self.pause = pause  # seconds
         self.maxrtt = maxrtt
         self.maxhop = maxhop
@@ -106,7 +108,14 @@ class Decider(HTTPServer):
     def updateHosts(self):
         print()
         print("=== Hosts updating ===")
-        pass
+
+        try:
+            response = get("http://" + self.regServerIP + ":" + str(self.regServerPort))
+            self.hosts = list(response.content.decode('ascii').split(' '))[:-1]
+        except:
+            print(">>> Reqistration hasn't been updated")
+
+        print(self.hosts)
 
     def updateNetworkMetrics(self):
         print()
@@ -275,6 +284,9 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             self.request.sendall(response)
         except:
             self.send_response(400)
+            self.send_header('content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write("Handling error!")
 
 
 def signalHandler(signum, frame):
@@ -291,7 +303,8 @@ if __name__ == '__main__':
     deciderIP = '10.0.8.51'
     deciderPort = 8080
     faasPort = 8888
-    hosts = ['10.0.9.1']
+    regServerIP = '10.0.6.1'
+    regServerPort = 8080
 
-    decider = Decider(deciderIP, deciderPort, faasPort, hosts, 5)
+    decider = Decider(deciderIP, deciderPort, faasPort, regServerIP, regServerPort, 2)
     decider.start()

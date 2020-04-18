@@ -7,18 +7,19 @@ from scapy.layers.http import HTTP, HTTPResponse
 # HTTP
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread, Lock
-from requests import get
+from requests import get, post
 from json import dumps
 
 # System
 from signal import signal, SIGINT
 from time import sleep
 from collections import defaultdict
+import sys
 
 
 class OpenfaasServer(HTTPServer):
 
-    def __init__(self, IP, Port, faasIP, faasPort, pause=10,
+    def __init__(self, IP, Port, faasIP, faasPort, regServerIP, regServerPort, pause=10,
                  duration=20):
         HTTPServer.__init__(self, server_address=(IP, Port), RequestHandlerClass=HTTPRequestHandler)
 
@@ -26,6 +27,8 @@ class OpenfaasServer(HTTPServer):
         self.Port = Port
         self.faasIP = faasIP
         self.faasPort = faasPort
+        self.regServerIP = regServerIP
+        self.regServerPort = regServerPort
         self.pause = pause  # seconds
         self.lock = Lock()
         self.faasMetrics = defaultdict(dict)
@@ -63,12 +66,23 @@ class OpenfaasServer(HTTPServer):
 
     def updateAll(self):
         while True:
+            self.updateRegistration()
             self.updateFaasMetrics()
             sleep(self.pause)
+
+    def updateRegistration(self):
+        print()
+        print("=== Reqistartion updating ===")
+
+        try:
+            response = post("http://" + self.regServerIP + ":" + str(self.regServerPort))
+        except:
+            print(">>> Reqistration hasn't been updated")
 
     def updateFaasMetrics(self):
         print()
         print("=== Faas metrics updating ===")
+
         with self.lock:
             self.faasMetrics.clear()
             URL = "http://" + self.faasIP + ":" + str(self.faasPort) + "/api/v1/"
@@ -120,14 +134,21 @@ def signalHandler(signum, frame):
 
 
 if __name__ == '__main__':
+
+    if len(sys.argv) < 2:
+        print('Usage: sudo python3 OpenfaasServer.py <IP address>')
+        exit()
+
     print()
     print('=== Openfaas server starting ===')
     signal(SIGINT, signalHandler)
 
-    serverIP = '10.0.9.1'
+    serverIP = sys.argv[1]
     serverPort = 8888
-    faasIP = '10.0.9.1'
+    faasIP = sys.argv[1]
     faasPort = 9090
+    regServerIP = '10.0.6.1'
+    regServerPort = 8080
 
-    server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, 5)
+    server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, regServerIP, regServerPort, 2)
     server.start()

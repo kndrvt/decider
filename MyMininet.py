@@ -29,12 +29,12 @@ class NetworkTopo(Topo):
         r2 = self.addNode('r2', cls=LinuxRouter, ip='10.0.8.52/24')
 
         h1 = self.addHost('h1', ip='10.0.7.1/24', defaultRoute='via 10.0.7.51')
-        # h2 = self.addHost('h2', ip='10.0.9.1/24', defaultRoute='via 10.0.9.52')
+        h2 = self.addHost('h2', ip='10.0.6.1/24', defaultRoute='via 10.0.6.52')
 
         info("### Add links")
         l1 = self.addLink(r1, r2, intfName1='r1-eth1', intfName2='r2-eth1')
         l2 = self.addLink(h1, r1, intfName1='h1-eth1', intfName2='r1-eth2')
-        # l3 = self.addLink(h2, r2, intfName1='h2-eth1', intfName2='r2-eth2')
+        l3 = self.addLink(h2, r2, intfName1='h2-eth1', intfName2='r2-eth2')
 
 
 def SetQuagga(Router):
@@ -62,13 +62,14 @@ def run():
     net.start()
 
     info("### Getting nodes \n")
-    # h1 = net.getNodeByName('h1')
-    # h2 = net.getNodeByName('h2')
     r1 = net.getNodeByName('r1')
     r2 = net.getNodeByName('r2')
 
     info("### Add external interfaces \n")
     intf = Intf(name='enp0s8', node=r2, ip='10.0.9.52/24')
+    intf2 = Intf(name='enp0s9', node=r2, ip='10.0.10.52/24')
+    intf3 = Intf(name='enp0s10', node=r2, ip='10.0.11.52/24')
+
 
     info("### Starting Quagga \n")
     SetQuagga(r1)
@@ -77,14 +78,14 @@ def run():
     info("### Starting Wireshark \n")
     # r1.cmd("wireshark &")
     r2.cmd("wireshark &")
-    r1.cmd("sleep 3")
-    r2.cmd("sleep 3")
+    # r1.cmd("sleep 3")
+    # r2.cmd("sleep 3")
 
     # info("### Starting Decider \n")
-    # r1.cmd("xterm &")
-    # h1.cmd("xterm &")
+    # r1.cmd("python3 Decider.py &")
+    # h2.cmd("python3 RegistrationServer.py &")
     # h1.cmd("sleep 5")
-    # h1.cmd("sh client.sh")
+    # h1.cmd("watch sh client.sh")
 
     CLI(net)
 
