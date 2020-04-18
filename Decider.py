@@ -73,11 +73,6 @@ class Decider(HTTPServer):
                         print("Other request method")
                         response = None
 
-                    # print("=================================")
-                    # print(HTTP() / HTTPResponse(Status_Code=str(response.status_code)) / Raw(
-                    #     load=response.content.decode(response.encoding)))
-                    # print("=================================")
-
                     if response:
                         return bytes(HTTP() / HTTPResponse(Status_Code=str(response.status_code)) / Raw(
                             load=response.content.decode('ascii')))

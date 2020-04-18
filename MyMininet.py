@@ -44,10 +44,6 @@ def SetQuagga(Router):
                % (Router.name, Router.name, Router.name), shell=True)
     Router.waitOutput()
 
-    # Router.cmd('sudo /usr/local/sbin/bgpd -f conf/%s-bgpd.conf -d -i /tmp/%s-bgpd.pid -z /tmp/%s-bgpd.api'
-    #            % (Router.name, Router.name, Router.name), shell=True)
-    # Router.waitOutput()
-
     Router.cmd(
         '/usr/local/sbin/ospfd -f conf/%s-ospfd.conf -d -i /tmp/%s-ospfd.pid -z /tmp/%s-zebra.api'
         % (Router.name, Router.name, Router.name), shell=True)
