@@ -4,7 +4,7 @@
 
 You need to have a network containing several hosts with launched Openfaas platform. An example is shown by the picture.
 
-![Setup](https://github.com/kndrvt/decider/Setup.pdf)
+![Setup](https://github.com/kndrvt/decider/blob/master/Setup.png)
 
 - OpenfaasServer.py is launched at the hosts with the Openfaas platform. 
 You should change the IP-addresses of the Registration server and current host. 
