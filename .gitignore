@@ -2,3 +2,4 @@
 logs/*
 tmp*
 conf/*bgpd.conf
+.idea/
