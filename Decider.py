@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 
 # Scapy
 from scapy.all import *
@@ -11,8 +11,21 @@ from requests import get, post
 from json import loads, dumps
 
 # System
-from signal import signal, SIGINT
-from time import clock, sleep
+from signal import signal, alarm, SIGINT, SIGALRM, SIGTERM
+from time import clock, sleep, time
+
+# Statistics
+import matplotlib.pyplot as plt
+import numpy as np
+
+# data
+start_time = time()
+time_line = []
+faas_metrics_names = ['Invocation rate', 'Replica count', 'Execution time']
+network_metrics_names = ['RTT', 'Hops']
+serverless_hosts = ['10.0.9.1', '10.0.10.1', '10.0.11.1']
+best_hosts = []
+metrics_values = dict()
 
 
 class Decider(HTTPServer):
@@ -37,14 +50,19 @@ class Decider(HTTPServer):
         self.faasMetrics = defaultdict(dict)
         self.faasMetricsNames = ['inv_rate', 'rep_count', 'exec_time']
         self.bestHosts = defaultdict(str)
-
-    def __del__(self):
-        self.handler.join()
+        self.handler = None
+        self.isRunning = False
 
     def start(self):
+        self.isRunning = True
         self.handler = Thread(target=self.updateAll)
         self.handler.start()
         self.serve_forever()
+
+    def finish(self):
+        self.isRunning = False
+        self.handler.join()
+        self.server_close()
 
     def handle(self, data):
         http = HTTP(data)
@@ -93,7 +111,7 @@ class Decider(HTTPServer):
                 return ""
 
     def updateAll(self):
-        while True:
+        while self.isRunning:
             self.updateHosts()
             self.updateNetworkMetrics()
             self.updateFaasMetrics()
@@ -108,7 +126,7 @@ class Decider(HTTPServer):
             response = get("http://" + self.regServerIP + ":" + str(self.regServerPort))
             self.hosts = list(response.content.decode('ascii').split(' '))[:-1]
         except:
-            print(">>> Reqistration hasn't been updated")
+            print(">>> Hosts haven't been updated")
 
         print(self.hosts)
 
@@ -160,6 +178,21 @@ class Decider(HTTPServer):
         print(dumps(self.rttav, indent=2, sort_keys=True))
         print(dumps(self.hopav, indent=2, sort_keys=True))
 
+        # data collecting
+        for host in serverless_hosts:
+            if not metrics_values.get(host):
+                metrics_values[host] = defaultdict(list)
+
+            if self.rttav.get(host):
+                metrics_values[host][network_metrics_names[0]].append(self.rttav[host])
+            else:
+                metrics_values[host][network_metrics_names[0]].append(0)
+
+            if self.hopav.get(host):
+                metrics_values[host][network_metrics_names[1]].append(self.hopav[host])
+            else:
+                metrics_values[host][network_metrics_names[1]].append(0)
+
         # normalization
         for host, metric in self.rttav.items():
             if maxMetrics[0] - minMetrics[0] > 0:
@@ -193,6 +226,8 @@ class Decider(HTTPServer):
                 response = get("http://" + host + ":" + str(self.faasPort))
             except:
                 print(">>>", host, "metrics haven't been updated")
+                for function in self.faasMetrics.keys():
+                    self.faasMetrics[function].pop(host)
                 continue
             faasmetrics = loads(response.content.decode('ascii'))
 
@@ -220,8 +255,19 @@ class Decider(HTTPServer):
 
         print(dumps(dict(self.faasMetrics), indent=2, sort_keys=True))
 
-        # normalization
+        # data collecting
+        for host in serverless_hosts:
+            if not metrics_values.get(host):
+                metrics_values[host] = defaultdict(list)
 
+            for i in range(3):
+                if self.faasMetrics['figlet'].get(host):
+                    metrics_values[host][faas_metrics_names[i]].append(
+                        self.faasMetrics['figlet'][host][self.faasMetricsNames[i]])
+                else:
+                    metrics_values[host][faas_metrics_names[i]].append(0)
+
+        # normalization
         for function, hosts in self.faasMetrics.items():
             for host, metrics in hosts.items():
                 for name, value in metrics.items():
@@ -237,6 +283,9 @@ class Decider(HTTPServer):
         print()
         print("=== The best hosts updating ===")
 
+        # data collecting
+        time_line.append(time() - start_time)
+
         for function in self.faasMetrics.keys():
             targetValues = dict()
             for host in self.hosts:
@@ -247,6 +296,9 @@ class Decider(HTTPServer):
             value = min(targetValues.keys())
             with self.lock:
                 self.bestHosts[function] = targetValues[value]
+
+        # data collecting
+        best_hosts.append(self.bestHosts['figlet'])
 
         with self.lock:
             print(dumps(dict(self.bestHosts), indent=2, sort_keys=True))
@@ -263,7 +315,7 @@ class Decider(HTTPServer):
             sum += 2.0
 
         for name in self.faasMetricsNames:
-            if self.faasMetrics[function][host].get(name):
+            if self.faasMetrics[function].get(host) and self.faasMetrics[function][host].get(name):
                 sum += self.faasMetrics[function][host][name]
             else:
                 sum += 2.0
@@ -284,15 +336,54 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write("Handling error!")
 
 
+def saveResults():
+    colors = ['b', 'y', 'r', 'g']
+
+    # FaaS metrics
+    fig, axes = plt.subplots(nrows=3, ncols=1)
+    name = 'FaaS metrics'
+    for i, ax in enumerate(fig.axes):
+        for j, host in enumerate(serverless_hosts):
+            ax.plot(time_line, metrics_values[host][faas_metrics_names[i]], colors[j] + '.-', linewidth=1, label=host)
+            ax.set_ylabel(faas_metrics_names[i])
+            ax.grid(True)
+    plt.legend()
+    plt.xlabel('Time')
+    plt.savefig('./pictures/' + name + '.pdf')
+    plt.close()
+
+    # Network metrics
+    fig, axes = plt.subplots(nrows=2, ncols=1)
+    name = 'Network metrics'
+    for i, ax in enumerate(fig.axes):
+        for j, host in enumerate(serverless_hosts):
+            ax.plot(time_line, metrics_values[host][network_metrics_names[i]], colors[j] + '.-', linewidth=1,
+                    label=host)
+            ax.set_ylabel(network_metrics_names[i])
+            ax.grid(True)
+    plt.legend()
+    plt.xlabel('Time')
+    plt.savefig('./pictures/' + name + '.pdf')
+    plt.close()
+
+    # Best host
+    name = 'Best hosts'
+    plt.plot(time_line, best_hosts, 'b.', linewidth=1)
+    plt.grid(True)
+    plt.ylabel('Host')
+    plt.xlabel('Time')
+    plt.savefig('./pictures/' + name + '.pdf')
+    plt.close()
+
 def signalHandler(signum, frame):
-    print()
-    print('=== Decider stopping ===')
-    exit()
+    raise Exception("Shutdown")
 
 
 if __name__ == '__main__':
     print()
     print('=== Decider starting ===')
+    alarm(60)
+    signal(SIGALRM, signalHandler)
     signal(SIGINT, signalHandler)
 
     deciderIP = '10.0.8.51'
@@ -302,4 +393,18 @@ if __name__ == '__main__':
     regServerPort = 8080
 
     decider = Decider(deciderIP, deciderPort, faasPort, regServerIP, regServerPort, 2)
-    decider.start()
+
+    try:
+        decider.start()
+
+    except:
+        pass
+
+    finally:
+
+        # data saving
+        saveResults()
+
+        print()
+        print('=== Decider stopping ===')
+        decider.finish()

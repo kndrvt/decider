@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 
 # HTTP
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -12,7 +12,7 @@ from time import sleep, clock
 
 class RegistrationServer(HTTPServer):
 
-    def __init__(self, IP, Port, pause=10, timeout=60):
+    def __init__(self, IP, Port, pause=10, timeout=10):
         HTTPServer.__init__(self, server_address=(IP, Port), RequestHandlerClass=HTTPRequestHandler)
         self.IP = IP
         self.Port = Port
@@ -21,16 +21,24 @@ class RegistrationServer(HTTPServer):
         self.timeout = timeout
         self.lock = Lock()
         self.handler = None
+        self.isRunning = False
 
     def start(self):
+        self.isRunning = True
         self.handler = Thread(target=self.updateAll)
         self.handler.start()
         self.serve_forever()
 
+    def finish(self):
+        self.isRunning = False
+        self.handler.join()
+        self.server_close()
+
     def updateAll(self):
-        while True:
+        while self.isRunning:
             self.updateHosts()
             sleep(self.pause)
+        exit(0)
 
     def updateHosts(self):
         print()
@@ -62,9 +70,7 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
 
 
 def signalHandler(signum, frame):
-    print()
-    print('=== Registration server stopping ===')
-    exit()
+    raise Exception("Shutdown")
 
 
 if __name__ == '__main__':
@@ -76,4 +82,14 @@ if __name__ == '__main__':
     serverPort = 8080
 
     server = RegistrationServer(serverIP, serverPort, 2, 60)
-    server.start()
+
+    try:
+        server.start()
+
+    except:
+        pass
+
+    finally:
+        print()
+        print('=== Registration server stopping ===')
+        server.finish()

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 
 # Scapy
 from scapy.all import *
@@ -34,14 +34,21 @@ class OpenfaasServer(HTTPServer):
         self.faasMetrics = defaultdict(dict)
         self.duration = duration  # seconds
         self.handler = None
+        self.isRunning = False
 
     def __del__(self):
         self.handler.join()
 
     def start(self):
+        self.isRunning = True
         self.handler = Thread(target=self.updateAll)
         self.handler.start()
         self.serve_forever()
+
+    def finish(self):
+        self.isRunning = False
+        self.handler.join()
+        self.server_close()
 
     def handle(self, data):
         http = HTTP(data)
@@ -65,10 +72,11 @@ class OpenfaasServer(HTTPServer):
             return bytes(HTTP / HTTPResponse(Status_Code='400'))
 
     def updateAll(self):
-        while True:
+        while self.isRunning:
             self.updateRegistration()
             self.updateFaasMetrics()
             sleep(self.pause)
+        exit(0)
 
     def updateRegistration(self):
         print()
@@ -128,9 +136,7 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
 
 
 def signalHandler(signum, frame):
-    print()
-    print('=== Openfaas server stopping ===')
-    exit()
+    raise Exception("Shutdown")
 
 
 if __name__ == '__main__':
@@ -151,4 +157,14 @@ if __name__ == '__main__':
     regServerPort = 8080
 
     server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, regServerIP, regServerPort, 2)
-    server.start()
+
+    try:
+        server.start()
+
+    except:
+        pass
+
+    finally:
+        print()
+        print('=== Openfaas server stopping ===')
+        server.finish()

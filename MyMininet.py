@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import os
 import time
 from mininet.net import Mininet
@@ -63,8 +65,8 @@ def run():
 
     info("### Add external interfaces \n")
     intf = Intf(name='enp0s8', node=r2, ip='10.0.9.52/24')
-    intf2 = Intf(name='enp0s9', node=r2, ip='10.0.10.52/24')
-    intf3 = Intf(name='enp0s10', node=r2, ip='10.0.11.52/24')
+    # intf2 = Intf(name='enp0s9', node=r2, ip='10.0.10.52/24')
+    # intf3 = Intf(name='enp0s10', node=r2, ip='10.0.11.52/24')
 
 
     info("### Starting Quagga \n")
