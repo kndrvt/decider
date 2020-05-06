@@ -4,3 +4,4 @@ tmp*
 conf/*bgpd.conf
 .idea/*
 pictures/*
+results/*

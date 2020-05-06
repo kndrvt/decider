@@ -12,10 +12,12 @@ from json import dumps
 
 # System
 from signal import signal, SIGINT
-from time import sleep
+from os import kill, getpid
+from time import sleep, time
 from collections import defaultdict
 import sys
 
+rate = 1
 
 class OpenfaasServer(HTTPServer):
 
@@ -46,11 +48,16 @@ class OpenfaasServer(HTTPServer):
         self.serve_forever()
 
     def finish(self):
-        self.isRunning = False
-        self.handler.join()
+        if self.isRunning:
+            self.isRunning = False
+            try:
+                self.handler.join()
+            except:
+                pass
         self.server_close()
 
     def handle(self, data):
+        shutdown = False
         http = HTTP(data)
         if http.name == 'HTTP 1':
             httpr = http.payload
@@ -60,30 +67,41 @@ class OpenfaasServer(HTTPServer):
                 print("=== Request ===")
                 print(httpr.summary())
 
-                with self.lock:
-                    payload = dumps(dict(self.faasMetrics))
+                payload = str(time())
+                if httpr.Path.decode('ascii') == "/Metrics":
+                    with self.lock:
+                        payload = dumps(dict(self.faasMetrics))
+
+                elif httpr.Path.decode('ascii') == "/Shutdown":
+                    shutdown = True
+
+                elif httpr.Path.decode('ascii') == "/Run":
+                    pass
+
+                else:
+                    print("Bad Path")
 
                 return bytes(HTTP() / HTTPResponse(Status_Code='200') / Raw(
-                    load=payload))
+                    load=payload)), shutdown
             else:
-                return bytes(HTTP / HTTPResponse(Status_Code='405'))
+                return bytes(HTTP / HTTPResponse(Status_Code='405')), shutdown
 
         else:
-            return bytes(HTTP / HTTPResponse(Status_Code='400'))
+            return bytes(HTTP / HTTPResponse(Status_Code='400')), shutdown
 
     def updateAll(self):
         while self.isRunning:
             self.updateRegistration()
             self.updateFaasMetrics()
             sleep(self.pause)
-        exit(0)
+        kill(getpid(), SIGINT)
 
     def updateRegistration(self):
         print()
         print("=== Reqistartion updating ===")
 
         try:
-            response = post("http://" + self.regServerIP + ":" + str(self.regServerPort))
+            response = post("http://" + self.regServerIP + ":" + str(self.regServerPort) + "/Registration")
         except:
             print(">>> Reqistration hasn't been updated")
 
@@ -131,8 +149,10 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
 
     def handle(self):
         self.data = self.request.recv(1024).strip()
-        response = self.server.handle(self.data)
+        response, shutdown = self.server.handle(self.data)
         self.request.sendall(response)
+        if shutdown:
+            self.server.isRunning = False
 
 
 def signalHandler(signum, frame):
@@ -153,10 +173,28 @@ if __name__ == '__main__':
     serverPort = 8888
     faasIP = sys.argv[1]
     faasPort = 9090
-    regServerIP = '10.0.6.1'
+    regServerIP = '10.0.5.1'
     regServerPort = 8080
 
-    server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, regServerIP, regServerPort, 2)
+    server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, regServerIP, regServerPort, 0.25)
+
+    try:
+        server.start()
+
+    except:
+        pass
+
+    finally:
+        print()
+        print('=== Openfaas server stopping ===')
+        server.finish()
+
+    print("=== Sleeping ===")
+    os.system("sudo iptables -A INPUT -p icmp --icmp-type echo-request -j REJECT")
+    sleep(10)
+    os.system("sudo iptables -D INPUT -p icmp --icmp-type echo-request -j REJECT")
+
+    server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, regServerIP, regServerPort, rate)
 
     try:
         server.start()

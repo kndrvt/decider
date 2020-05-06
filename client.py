@@ -9,7 +9,7 @@ import time
 
 def signalHandler(signum, frame):
     print()
-    print('=== Openfaas server stopping ===')
+    print('=== Loading stopping ===')
     exit()
 
 
@@ -24,7 +24,7 @@ if __name__ == '__main__':
         input = " ".join(sys.argv[2:])
 
     print()
-    print('=== Openfaas server starting ===')
+    print('=== Loading starting ===')
     signal.signal(signal.SIGINT, signalHandler)
     np.random.seed()
 

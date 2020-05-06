@@ -1,5 +1,9 @@
 #!/usr/bin/python3
 
+# Scapy
+from scapy.all import *
+from scapy.layers.http import HTTP, HTTPResponse, HTTPRequest
+
 # HTTP
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread, Lock
@@ -7,8 +11,10 @@ from json import dumps
 
 # System
 from signal import signal, SIGINT
-from time import sleep, clock
+from os import kill, getpid
+from time import sleep, time
 
+rate = 1
 
 class RegistrationServer(HTTPServer):
 
@@ -30,43 +36,85 @@ class RegistrationServer(HTTPServer):
         self.serve_forever()
 
     def finish(self):
-        self.isRunning = False
-        self.handler.join()
+        if self.isRunning:
+            self.isRunning = False
+            try:
+                self.handler.join()
+            except:
+                pass
         self.server_close()
+
+    def handle(self, data, address):
+        shutdown = False
+        http = HTTP(data)
+        if http.name == 'HTTP 1':
+            httpr = http.payload
+
+            if httpr.name == 'HTTP Request':
+                print()
+                print("=== Request ===")
+                print(httpr.summary(), address)
+
+                payload = ""
+                if httpr.Method.decode('ascii') == 'POST':
+                    with self.lock:
+                        self.hosts[address] = time()
+
+                elif httpr.Method.decode('ascii') == 'GET':
+
+                    if httpr.Path.decode('ascii') == "/Hosts":
+                        with self.lock:
+                            for host in self.hosts.keys():
+                                payload += host + ' '
+
+                    elif httpr.Path.decode('ascii') == "/Shutdown":
+                        payload = str(time())
+                        shutdown = True
+
+                    else:
+                        payload = str(time())
+
+                else:
+                    print(">>> Other request method")
+
+                return bytes(HTTP() / HTTPResponse(Status_Code='200') / Raw(load=payload)), shutdown
+
+            else:
+                return bytes(HTTP / HTTPResponse(Status_Code='405')), shutdown
+
+        else:
+            return bytes(HTTP / HTTPResponse(Status_Code='400')), shutdown
 
     def updateAll(self):
         while self.isRunning:
             self.updateHosts()
             sleep(self.pause)
-        exit(0)
+        kill(getpid(), SIGINT)
 
     def updateHosts(self):
         print()
         print("=== Hosts updating ===")
 
-        with self.lock:
-            for host, time in self.hosts.items():
-                if clock() - time > self.timeout:
-                    self.hosts.pop(host)
+        try:
+            with self.lock:
+                ll = list(self.hosts.items())
+                for host, htime in ll:
+                    if time() - htime > self.timeout:
+                        self.hosts.pop(host)
+        except:
+            print(">>> Uodate hosts exception")
 
         print(dumps(self.hosts, indent=2, sort_keys=True))
 
 
 class HTTPRequestHandler(BaseHTTPRequestHandler):
 
-    def do_POST(self):
-        self.send_response(200)
-        self.end_headers()
-        with self.server.lock:
-            self.server.hosts[self.address_string()] = clock()
-
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        with self.server.lock:
-            for host in self.server.hosts.keys():
-                self.wfile.write(bytes(host, 'ascii'))
-                self.wfile.write(bytes(' ', 'ascii'))
+    def handle(self):
+        self.data = self.request.recv(1024).strip()
+        response, shutdown = self.server.handle(self.data, self.address_string())
+        self.request.sendall(response)
+        if shutdown:
+            self.server.isRunning = False
 
 
 def signalHandler(signum, frame):
@@ -78,16 +126,16 @@ if __name__ == '__main__':
     print('=== Registration server starting ===')
     signal(SIGINT, signalHandler)
 
-    serverIP = '10.0.6.1'
+    serverIP = '10.0.5.1'
     serverPort = 8080
 
-    server = RegistrationServer(serverIP, serverPort, 2, 60)
+    server = RegistrationServer(serverIP, serverPort, rate, 2)
 
     try:
         server.start()
 
     except:
-        pass
+        print(">>> Shutdown hosts exception")
 
     finally:
         print()
