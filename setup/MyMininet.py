@@ -97,9 +97,9 @@ def run():
         SetQuagga(r[i])
 
     info("### Add external interfaces \n")
-    intf1 = Intf(name='enp0s8', node=r[2], ip='10.0.1.2/24')
-    intf2 = Intf(name='enp0s9', node=r[3], ip='10.0.2.2/24')
-    intf3 = Intf(name='enp0s10', node=r[5], ip='10.0.3.2/24')
+    # intf1 = Intf(name='enp0s8', node=r[2], ip='10.0.1.2/24')
+    # intf2 = Intf(name='enp0s9', node=r[3], ip='10.0.2.2/24')
+    # intf3 = Intf(name='enp0s10', node=r[5], ip='10.0.3.2/24')
 
     CLI(net)
 

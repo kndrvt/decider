@@ -11,28 +11,29 @@ from requests import get, post
 from json import loads, dumps
 
 # System
-from signal import signal, alarm, SIGINT, SIGALRM, SIGTERM
+from signal import signal, SIGINT
+# from signal import alarm, SIGALRM
 from time import sleep, time
 from os import path, mkdir
 
-# Statistics
-import matplotlib.pyplot as plt
-import numpy as np
+# # Statistics
+# import matplotlib.pyplot as plt
+# import numpy as np
 
-# data
-start_time = time()
-time_line = []
-times = []
-# faas_metrics_names = ['Invocation rate', 'Replica count', 'Execution time']
-faas_metrics_names = ['Частота, 1/с', 'Кол-во реплик', 'Время выполнения, с']
-# network_metrics_names = ['RTT', 'Hops']
-network_metrics_names = ['RTT, мс', 'Кол-во хопов']
-serverless_hosts = ['10.0.1.1', '10.0.2.1', '10.0.3.1']
-best_hosts = []
-metrics_values = dict()
-server_state = 'start'
-kill_reg = True
-rate = 1
+# # data
+# start_time = time()
+# time_line = []
+# times = []
+# # faas_metrics_names = ['Invocation rate', 'Replica count', 'Execution time']
+# faas_metrics_names = ['Частота, 1/с', 'Кол-во реплик', 'Время выполнения, с']
+# # network_metrics_names = ['RTT', 'Hops']
+# network_metrics_names = ['RTT, мс', 'Кол-во хопов']
+# serverless_hosts = ['10.0.1.1', '10.0.2.1', '10.0.3.1']
+# best_hosts = []
+# metrics_values = dict()
+# server_state = 'start'
+# kill_reg = True
+# rate = 1
 
 
 class Decider(HTTPServer):
@@ -194,20 +195,20 @@ class Decider(HTTPServer):
         print(dumps(self.rttav, indent=2, sort_keys=True))
         print(dumps(self.hopav, indent=2, sort_keys=True))
 
-        # data collecting
-        for host in serverless_hosts:
-            if not metrics_values.get(host):
-                metrics_values[host] = defaultdict(list)
+        # # data collecting
+        # for host in serverless_hosts:
+        #     if not metrics_values.get(host):
+        #         metrics_values[host] = defaultdict(list)
 
-            if self.rttav.get(host):
-                metrics_values[host][network_metrics_names[0]].append(self.rttav[host])
-            else:
-                metrics_values[host][network_metrics_names[0]].append(0)
+        #     if self.rttav.get(host):
+        #         metrics_values[host][network_metrics_names[0]].append(self.rttav[host])
+        #     else:
+        #         metrics_values[host][network_metrics_names[0]].append(0)
 
-            if self.hopav.get(host):
-                metrics_values[host][network_metrics_names[1]].append(self.hopav[host])
-            else:
-                metrics_values[host][network_metrics_names[1]].append(0)
+        #     if self.hopav.get(host):
+        #         metrics_values[host][network_metrics_names[1]].append(self.hopav[host])
+        #     else:
+        #         metrics_values[host][network_metrics_names[1]].append(0)
 
         # normalization
         for host, metric in self.rttav.items():
@@ -273,17 +274,17 @@ class Decider(HTTPServer):
 
         print(dumps(dict(self.faasMetrics), indent=2, sort_keys=True))
 
-        # data collecting
-        for host in serverless_hosts:
-            if not metrics_values.get(host):
-                metrics_values[host] = defaultdict(list)
+        # # data collecting
+        # for host in serverless_hosts:
+        #     if not metrics_values.get(host):
+        #         metrics_values[host] = defaultdict(list)
 
-            for i in range(3):
-                if self.faasMetrics.get('figlet') and self.faasMetrics['figlet'].get(host):
-                    metrics_values[host][faas_metrics_names[i]].append(
-                        self.faasMetrics['figlet'][host][self.faasMetricsNames[i]])
-                else:
-                    metrics_values[host][faas_metrics_names[i]].append(0)
+        #     for i in range(3):
+        #         if self.faasMetrics.get('figlet') and self.faasMetrics['figlet'].get(host):
+        #             metrics_values[host][faas_metrics_names[i]].append(
+        #                 self.faasMetrics['figlet'][host][self.faasMetricsNames[i]])
+        #         else:
+        #             metrics_values[host][faas_metrics_names[i]].append(0)
 
         # normalization
         for function, hosts in self.faasMetrics.items():
@@ -301,8 +302,8 @@ class Decider(HTTPServer):
         print()
         print("=== The best hosts updating ===")
 
-        # data collecting
-        time_line.append(time() - start_time)
+        # # data collecting
+        # time_line.append(time() - start_time)
 
         with self.lock:
             self.bestHosts.clear()
@@ -321,12 +322,12 @@ class Decider(HTTPServer):
                 with self.lock:
                     self.bestHosts[function] = ""
 
-        # data collecting
-        with self.lock:
-            if self.bestHosts.get('figlet'):
-                best_hosts.append(self.bestHosts['figlet'])
-            else:
-                best_hosts.append("")
+        # # data collecting
+        # with self.lock:
+        #     if self.bestHosts.get('figlet'):
+        #         best_hosts.append(self.bestHosts['figlet'])
+        #     else:
+        #         best_hosts.append("")
 
         with self.lock:
             print(dumps(dict(self.bestHosts), indent=2, sort_keys=True))
@@ -364,128 +365,128 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write("Handling error!")
 
 
-def saveResults():
-    colors = ['b', 'g', 'r']
-    if not path.exists('./pictures/'):
-        os.mkdir('./pictures/')
-    if not path.exists('./results/'):
-        os.mkdir('./results/')
-    p_path = './pictures/'
-    r_path = './results/'
-    if not kill_reg:
-        p_path += '1/'
-        r_path += '1/'
+# def saveResults():
+#     colors = ['b', 'g', 'r']
+#     if not path.exists('./graphs/'):
+#         os.mkdir('./graphs/')
+#     if not path.exists('./results/'):
+#         os.mkdir('./results/')
+#     p_path = './graphs/'
+#     r_path = './results/'
+#     if not kill_reg:
+#         p_path += '1/'
+#         r_path += '1/'
 
-        if not path.exists('./pictures/1'):
-            os.mkdir('./pictures/1')
-        if not path.exists('./results/1'):
-            os.mkdir('./results/1')
-    else:
-        p_path += '2/'
-        r_path += '2/'
+#         if not path.exists('./graphs/1'):
+#             os.mkdir('./graphs/1')
+#         if not path.exists('./results/1'):
+#             os.mkdir('./results/1')
+#     else:
+#         p_path += '2/'
+#         r_path += '2/'
 
-        if not path.exists('./pictures/2/'):
-            os.mkdir('./pictures/2/')
-        if not path.exists('./results/2/'):
-            os.mkdir('./results/2/')
+#         if not path.exists('./graphs/2/'):
+#             os.mkdir('./graphs/2/')
+#         if not path.exists('./results/2/'):
+#             os.mkdir('./results/2/')
 
-    with open(r_path + "results.txt", 'w') as out:
-        out.write(dumps(metrics_values, indent=2))
-        out.write(str(time_line) + '\n')
-        out.write(str(times) + '\n')
-        out.write(str(best_hosts) + '\n')
+#     with open(r_path + "results.txt", 'w') as out:
+#         out.write(dumps(metrics_values, indent=2))
+#         out.write(str(time_line) + '\n')
+#         out.write(str(times) + '\n')
+#         out.write(str(best_hosts) + '\n')
 
-    # FaaS metrics
-    fig, axes = plt.subplots(nrows=3, ncols=1)
-    name = 'FaaS metrics'
-    for i, ax in enumerate(fig.axes):
-        for j, host in enumerate(serverless_hosts):
-            ax.plot(time_line, metrics_values[host][faas_metrics_names[i]], colors[j] + '-', linewidth=1, label=host)
-        ax.set_ylabel(faas_metrics_names[i])
-        ax.grid(True)
-        for t in times:
-            ax.axvline(t, color='r')
-    plt.legend()
-    plt.xlabel('Время, с')
-    plt.savefig(p_path + name + str(1000 * rate) + '.pdf')
-    plt.close()
+#     # FaaS metrics
+#     fig, axes = plt.subplots(nrows=3, ncols=1)
+#     name = 'FaaS metrics'
+#     for i, ax in enumerate(fig.axes):
+#         for j, host in enumerate(serverless_hosts):
+#             ax.plot(time_line, metrics_values[host][faas_metrics_names[i]], colors[j] + '-', linewidth=1, label=host)
+#         ax.set_ylabel(faas_metrics_names[i])
+#         ax.grid(True)
+#         for t in times:
+#             ax.axvline(t, color='r')
+#     plt.legend()
+#     plt.xlabel('Время, с')
+#     plt.savefig(p_path + name + str(1000 * rate) + '.pdf')
+#     plt.close()
 
-    # Network metrics
-    fig, axes = plt.subplots(nrows=2, ncols=1)
-    name = 'Network metrics'
-    for i, ax in enumerate(fig.axes):
-        for j, host in enumerate(serverless_hosts):
-            ax.plot(time_line, metrics_values[host][network_metrics_names[i]], colors[j] + '-', linewidth=1,
-                    label=host)
-        ax.set_ylabel(network_metrics_names[i])
-        ax.grid(True)
-        for t in times:
-            ax.axvline(t, color='r')
-    plt.legend()
-    plt.xlabel('Время, с')
-    plt.savefig(p_path + name + str(1000 * rate) + '.pdf')
-    plt.close()
+#     # Network metrics
+#     fig, axes = plt.subplots(nrows=2, ncols=1)
+#     name = 'Network metrics'
+#     for i, ax in enumerate(fig.axes):
+#         for j, host in enumerate(serverless_hosts):
+#             ax.plot(time_line, metrics_values[host][network_metrics_names[i]], colors[j] + '-', linewidth=1,
+#                     label=host)
+#         ax.set_ylabel(network_metrics_names[i])
+#         ax.grid(True)
+#         for t in times:
+#             ax.axvline(t, color='r')
+#     plt.legend()
+#     plt.xlabel('Время, с')
+#     plt.savefig(p_path + name + str(1000 * rate) + '.pdf')
+#     plt.close()
 
-    # Best host
-    name = 'Best hosts'
-    plt.plot(time_line, best_hosts, 'b.', linewidth=1)
-    for t in times:
-        plt.axvline(t, color='r')
-    plt.grid(True)
-    # plt.ylabel('IP-адрес конченой бессерверной платформы')
-    plt.xlabel('Время, с')
-    plt.savefig(p_path + name + str(1000 * rate) + '.pdf')
-    plt.close()
+#     # Best host
+#     name = 'Best hosts'
+#     plt.plot(time_line, best_hosts, 'b.', linewidth=1)
+#     for t in times:
+#         plt.axvline(t, color='r')
+#     plt.grid(True)
+#     # plt.ylabel('IP-адрес конченой бессерверной платформы')
+#     plt.xlabel('Время, с')
+#     plt.savefig(p_path + name + str(1000 * rate) + '.pdf')
+#     plt.close()
 
 
 def signalHandler(signum, frame):
-    # experiment
-    global server_state
-    if server_state == 'start':
-        print("**** State:", server_state)
-        if kill_reg:
-            response = get(url="http://10.0.5.1:8080/Shutdown")
-            print("**** Time:", float(response.content.decode('ascii')) - start_time)
-            times.append(float(response.content.decode('ascii')) - start_time)
-        server_state = 'terminate registration'
-        alarm(10)
-        return
+    # # experiment
+    # global server_state
+    # if server_state == 'start':
+    #     print("**** State:", server_state)
+    #     if kill_reg:
+    #         response = get(url="http://10.0.5.1:8080/Shutdown")
+    #         print("**** Time:", float(response.content.decode('ascii')) - start_time)
+    #         times.append(float(response.content.decode('ascii')) - start_time)
+    #     server_state = 'terminate registration'
+    #     alarm(10)
+    #     return
 
-    elif server_state == 'terminate registration':
-        print("**** State:", server_state)
-        response = get(url="http://10.0.1.1:8888/Shutdown")
-        print("**** Time:", float(response.content.decode('ascii')) - start_time)
-        times.append(float(response.content.decode('ascii')) - start_time)
-        server_state = 'terminate serverless'
-        alarm(10)
-        return
+    # elif server_state == 'terminate registration':
+    #     print("**** State:", server_state)
+    #     response = get(url="http://10.0.1.1:8888/Shutdown")
+    #     print("**** Time:", float(response.content.decode('ascii')) - start_time)
+    #     times.append(float(response.content.decode('ascii')) - start_time)
+    #     server_state = 'terminate serverless'
+    #     alarm(10)
+    #     return
 
-    elif server_state == 'terminate serverless':
-        print("**** State:", server_state)
-        response = None
-        while not response:
-            try:
-                response = get(url="http://10.0.1.1:8888/Run")
-            except:
-                pass
-        print("**** Time:", float(response.content.decode('ascii')) - start_time)
-        times.append(float(response.content.decode('ascii')) - start_time)
-        server_state = 'run serverless'
-        alarm(10)
-        return
+    # elif server_state == 'terminate serverless':
+    #     print("**** State:", server_state)
+    #     response = None
+    #     while not response:
+    #         try:
+    #             response = get(url="http://10.0.1.1:8888/Run")
+    #         except:
+    #             pass
+    #     print("**** Time:", float(response.content.decode('ascii')) - start_time)
+    #     times.append(float(response.content.decode('ascii')) - start_time)
+    #     server_state = 'run serverless'
+    #     alarm(10)
+    #     return
 
-    elif server_state == 'run serverless':
-        print("**** State:", server_state)
-        raise Exception("Shutdown")
+    # elif server_state == 'run serverless':
+    #     print("**** State:", server_state)
+    #     raise Exception("Shutdown")
 
-    # raise Exception("Shutdown")
+    raise Exception("Shutdown")
 
 
 if __name__ == '__main__':
     print()
     print('=== Decider starting ===')
-    alarm(10)
-    signal(SIGALRM, signalHandler)
+    # alarm(10)
+    # signal(SIGALRM, signalHandler)
     signal(SIGINT, signalHandler)
 
     deciderIP = '10.0.4.2'
@@ -493,6 +494,7 @@ if __name__ == '__main__':
     faasPort = 8888
     regServerIP = '10.0.5.1'
     regServerPort = 8080
+    rate = 1
 
     decider = Decider(deciderIP, deciderPort, faasPort, regServerIP, regServerPort, rate)
 
@@ -504,8 +506,8 @@ if __name__ == '__main__':
 
     finally:
 
-        # data saving
-        saveResults()
+        # # data saving
+        # saveResults()
 
         print()
         print('=== Decider stopping ===')

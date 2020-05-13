@@ -17,8 +17,6 @@ from time import sleep, time
 from collections import defaultdict
 import sys
 
-rate = 1
-
 class OpenfaasServer(HTTPServer):
 
     def __init__(self, IP, Port, faasIP, faasPort, regServerIP, regServerPort, pause=10,
@@ -67,16 +65,17 @@ class OpenfaasServer(HTTPServer):
                 print("=== Request ===")
                 print(httpr.summary())
 
-                payload = str(time())
+                payload = ""
                 if httpr.Path.decode('ascii') == "/Metrics":
                     with self.lock:
                         payload = dumps(dict(self.faasMetrics))
 
-                elif httpr.Path.decode('ascii') == "/Shutdown":
-                    shutdown = True
+                # elif httpr.Path.decode('ascii') == "/Shutdown":
+                #     payload = str(time())
+                #     shutdown = True
 
                 elif httpr.Path.decode('ascii') == "/Run":
-                    pass
+                    payload = str(time())
 
                 else:
                     print("Bad Path")
@@ -175,24 +174,7 @@ if __name__ == '__main__':
     faasPort = 9090
     regServerIP = '10.0.5.1'
     regServerPort = 8080
-
-    server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, regServerIP, regServerPort, 0.25)
-
-    try:
-        server.start()
-
-    except:
-        pass
-
-    finally:
-        print()
-        print('=== Openfaas server stopping ===')
-        server.finish()
-
-    print("=== Sleeping ===")
-    os.system("sudo iptables -A INPUT -p icmp --icmp-type echo-request -j REJECT")
-    sleep(10)
-    os.system("sudo iptables -D INPUT -p icmp --icmp-type echo-request -j REJECT")
+    rate = 1
 
     server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, regServerIP, regServerPort, rate)
 
@@ -206,3 +188,21 @@ if __name__ == '__main__':
         print()
         print('=== Openfaas server stopping ===')
         server.finish()
+
+    # print("=== Sleeping ===")
+    # os.system("sudo iptables -A INPUT -p icmp --icmp-type echo-request -j REJECT")
+    # sleep(10)
+    # os.system("sudo iptables -D INPUT -p icmp --icmp-type echo-request -j REJECT")
+
+    # server = OpenfaasServer(serverIP, serverPort, faasIP, faasPort, regServerIP, regServerPort, rate)
+
+    # try:
+    #     server.start()
+
+    # except:
+    #     pass
+
+    # finally:
+    #     print()
+    #     print('=== Openfaas server stopping ===')
+    #     server.finish()

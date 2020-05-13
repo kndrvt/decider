@@ -30,4 +30,4 @@ if __name__ == '__main__':
 
     while True:
         os.system("echo \"" + input + "\" | faas-cli -g " + sys.argv[1] + ":8080 invoke figlet")
-        time.sleep(0.01 * np.random.poisson(lam=100))
+        time.sleep(np.random.poisson(lam=1))

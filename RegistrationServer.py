@@ -14,8 +14,6 @@ from signal import signal, SIGINT
 from os import kill, getpid
 from time import sleep, time
 
-rate = 1
-
 class RegistrationServer(HTTPServer):
 
     def __init__(self, IP, Port, pause=10, timeout=10):
@@ -67,9 +65,9 @@ class RegistrationServer(HTTPServer):
                             for host in self.hosts.keys():
                                 payload += host + ' '
 
-                    elif httpr.Path.decode('ascii') == "/Shutdown":
-                        payload = str(time())
-                        shutdown = True
+                    # elif httpr.Path.decode('ascii') == "/Shutdown":
+                    #     payload = str(time())
+                    #     shutdown = True
 
                     else:
                         payload = str(time())
@@ -128,6 +126,7 @@ if __name__ == '__main__':
 
     serverIP = '10.0.5.1'
     serverPort = 8080
+    rate = 1
 
     server = RegistrationServer(serverIP, serverPort, rate, 2)
 
